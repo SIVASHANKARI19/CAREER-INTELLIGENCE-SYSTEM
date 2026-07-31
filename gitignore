@@ -1,6 +1,17 @@
+# Environment files
 .env
+*.env
 backend/.env
+
+# Node modules
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Python
 __pycache__/
 *.pyc
-backend/uploads/
-backend/career_intelligence.db
+
+# Venv
+venv/
+.venv/
