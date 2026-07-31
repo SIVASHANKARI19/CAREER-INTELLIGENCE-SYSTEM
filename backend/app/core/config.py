@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRY_DAYS: int = 7
     UPLOAD_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
     GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
     GITHUB_TOKEN: str = ""
 
     class Config:

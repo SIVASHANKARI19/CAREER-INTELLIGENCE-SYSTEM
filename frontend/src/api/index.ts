@@ -79,12 +79,29 @@ export const resumeApi = {
 
 // 4.5 GitHub Analyzer API
 export const githubApi = {
-  analyze: (github_url: string) =>
-    apiClient.post<GithubAnalysis>('/github/analyze', { github_url }).then(r => r.data),
-  getAnalysis: (student_id: number) =>
-    apiClient.get<GithubAnalysis>(`/github/${student_id}`).then(r => r.data),
-};
+  analyze: (github_url: string) => {
+    console.log("GitHub URL:", github_url);
 
+    const payload = { github_url };
+    console.log("Payload:", payload);
+
+    return apiClient
+      .post<GithubAnalysis>("/github/analyze", payload)
+      .then((r) => {
+        console.log("Response:", r.data);
+        return r.data;
+      })
+      .catch((err) => {
+        console.error("GitHub API Error:", err.response?.data || err);
+        throw err;
+      });
+  },
+
+  getAnalysis: (student_id: number) =>
+    apiClient
+      .get<GithubAnalysis>(`/github/${student_id}`)
+      .then((r) => r.data),
+};
 // 4.6 LinkedIn Analyzer API
 export const linkedinApi = {
   analyze: (student_id?: number) =>

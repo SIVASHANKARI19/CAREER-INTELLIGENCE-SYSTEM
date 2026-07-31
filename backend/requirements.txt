@@ -36,3 +36,6 @@ pandas>=2.1.0
 # Trains on a synthetic dataset (documented in the script) and saves the
 # model to app/ml_models/. Replace with real placement records once your
 # college provides them via Module 14's Dataset Management.
+
+# --- Module 12: Explainable AI (SHAP) ---
+shap>=0.44.0

@@ -8,9 +8,9 @@ from app.models.resume import ResumeAnalysis
 from app.models.github_profile import GithubAnalysis
 from app.api.deps import get_current_user
 from app.api.readiness import compute_and_persist_readiness
+from app.api.skill_gap import _run_and_persist as run_skill_gap
 from app.services.resume_service import analyze_resume_mock
 from app.services.github_service import analyze_github_mock
-from app.services.skill_gap_service import analyze_skill_gap_mock
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
@@ -45,7 +45,7 @@ def get_dashboard_summary(current_user: User = Depends(get_current_user), db: Se
     else:
         github = analyze_github_mock(profile.github_url if profile else "", student_id)
 
-    skill_gap = analyze_skill_gap_mock(student_id, career_goal)
+    skill_gap_record = run_skill_gap(student_id, career_goal, db)
 
     # Pull real activity if any exists; otherwise fall back to a deterministic
     # per-student mock (consistent with how every other service on this
@@ -82,7 +82,7 @@ def get_dashboard_summary(current_user: User = Depends(get_current_user), db: Se
         "ats_score": resume["ats_score"],
         "github_score": github["github_score"],
         "resume_score": resume["ats_score"],
-        "skill_gap_count": len(skill_gap["missing_skills"]),
+        "skill_gap_count": len(skill_gap_record.missing_skills or []),
         "profile_completion": profile.profile_completion_pct if profile else 50,
         "recent_activity": recent_activity
     }
