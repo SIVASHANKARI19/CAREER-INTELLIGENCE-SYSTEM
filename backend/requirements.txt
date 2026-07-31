@@ -13,14 +13,26 @@ pymysql>=1.1.0
 cryptography>=41.0.0
 python-dotenv>=1.0.0
 
-uvicorn[standard]>=0.27.0
-sqlalchemy>=2.0.25
-alembic>=1.13.1
-pydantic>=2.5.3
-pydantic-settings>=2.1.0
-pyjwt>=2.8.0
-passlib[bcrypt]>=1.7.4
-python-multipart>=0.0.6
-pymysql>=1.1.0
-cryptography>=41.0.0
-python-dotenv>=1.0.0
+# Module 4: Resume Analyzer (AI) ---
+pymupdf>=1.23.0
+spacy>=3.7.0
+sentence-transformers>=2.5.0
+numpy>=1.26.0
+# After installing requirements, download the spaCy trained pipeline once:
+#   python -m spacy download en_core_web_sm
+# The service degrades gracefully (exact skill matching still works) if this
+# step is skipped, but NER-based company/date extraction needs it.
+
+# --- Module 5: GitHub Analyzer (AI) ---
+requests>=2.31.0
+
+# --- Module 8: Placement Prediction (AI) ---
+xgboost>=2.0.0
+scikit-learn>=1.4.0
+joblib>=1.3.0
+pandas>=2.1.0
+# One-time model training step (from backend/ directory):
+#   python -m app.ml.train_placement_model
+# Trains on a synthetic dataset (documented in the script) and saves the
+# model to app/ml_models/. Replace with real placement records once your
+# college provides them via Module 14's Dataset Management.

@@ -35,6 +35,15 @@ def create_refresh_token(data: dict) -> str:
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
+def create_reset_token(data: dict, expires_delta: Optional[datetime.timedelta] = None) -> str:
+    """Dedicated password-reset token. Distinct 'type' claim ensures it can never
+    be used as a bearer access token by get_current_user()."""
+    to_encode = data.copy()
+    expire = datetime.datetime.utcnow() + (expires_delta or datetime.timedelta(minutes=15))
+    to_encode.update({"exp": expire, "type": "reset"})
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.ALGORITHM)
+    return encoded_jwt
+
 def decode_token(token: str) -> Dict[str, Any]:
     try:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.ALGORITHM])

@@ -1,0 +1,22 @@
+{
+  "Random Forest": {
+    "accuracy": 0.81,
+    "roc_auc": 0.7818,
+    "f1": 0.8948
+  },
+  "SVM (RBF kernel)": {
+    "accuracy": 0.8117,
+    "roc_auc": 0.6972,
+    "f1": 0.8949
+  },
+  "Neural Network (MLP)": {
+    "accuracy": 0.8133,
+    "roc_auc": 0.7239,
+    "f1": 0.8953
+  },
+  "XGBoost": {
+    "accuracy": 0.8233,
+    "roc_auc": 0.7697,
+    "f1": 0.8992
+  }
+}

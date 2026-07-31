@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 import datetime
 from app.core.database import get_db
-from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
+from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token, create_reset_token, decode_token
 from app.models.user import User, UserRole
 from app.models.student_profile import StudentProfile
 from app.schemas.auth import (
@@ -81,8 +81,10 @@ def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
         # Return success to prevent email enumeration
         return {"message": "Password reset instructions sent if email exists."}
     
-    # Mock token generation
-    reset_token = create_access_token(data={"sub": str(user.id), "type": "reset"}, expires_delta=datetime.timedelta(minutes=15))
+    # NOTE: for demo purposes the token is returned directly since no SMTP/email
+    # service is wired up yet. In production this must be emailed to the user,
+    # never returned in the API response.
+    reset_token = create_reset_token(data={"sub": str(user.id)})
     return {
         "message": "Password reset instructions sent if email exists.",
         "reset_token_mock": reset_token
@@ -91,6 +93,9 @@ def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
 @router.post("/reset-password")
 def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
     payload = decode_token(body.token)
+    if payload.get("type") != "reset":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+
     user_id = payload.get("sub")
     user = db.query(User).filter(User.id == int(user_id)).first()
     if not user:
