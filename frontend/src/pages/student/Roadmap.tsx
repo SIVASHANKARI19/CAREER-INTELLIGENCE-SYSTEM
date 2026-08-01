@@ -1,21 +1,54 @@
 import React, { useEffect, useState } from 'react';
 import { roadmapApi, profileApi } from '../../api';
 import { LearningRoadmap } from '../../types';
-import { Compass, Calendar, BookOpen, Rocket, HelpCircle, ExternalLink, CheckCircle } from 'lucide-react';
+import { Compass, Calendar, BookOpen, Rocket, HelpCircle, ExternalLink, CheckCircle, RefreshCw } from 'lucide-react';
 
 export const RoadmapPage: React.FC = () => {
   const [data, setData] = useState<LearningRoadmap | null>(null);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     profileApi.getProfile()
       .then(p => roadmapApi.getRoadmap(p.id))
       .then(res => setData(res))
-      .catch(err => console.error(err))
+      .catch(() => {
+        // No roadmap yet is expected on first visit — not a real error.
+        setData(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
+  const handleGenerate = () => {
+    setError(null);
+    setGenerating(true);
+    roadmapApi.generate()
+      .then(res => setData(res))
+      .catch(err => setError(err.response?.data?.detail || 'Roadmap generation failed. Please try again.'))
+      .finally(() => setGenerating(false));
+  };
+
   if (loading) return <div className="p-8 text-center text-slate-500">Generating personalized AI learning roadmap...</div>;
+
+  if (!data) {
+    return (
+      <div className="bg-white dark:bg-[#242B31] p-10 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm text-center space-y-4">
+        <Compass className="mx-auto text-indigo-600" size={32} />
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white">No roadmap yet</h2>
+        <p className="text-sm text-slate-500">Generate a personalized weekly/monthly learning roadmap based on your skill gaps and career goal.</p>
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <button
+          onClick={handleGenerate}
+          disabled={generating}
+          className="px-4 py-2 bg-linkedin-blue hover:bg-linkedin-hover text-white text-sm font-semibold rounded-lg shadow-sm inline-flex items-center gap-2 disabled:opacity-60"
+        >
+          <RefreshCw size={16} className={generating ? 'animate-spin' : ''} />
+          {generating ? 'Generating...' : 'Generate Roadmap'}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -30,7 +63,16 @@ export const RoadmapPage: React.FC = () => {
             <p className="text-xs text-slate-500">Weekly structured milestone schedule to reach placement readiness</p>
           </div>
         </div>
+        <button
+          onClick={handleGenerate}
+          disabled={generating}
+          className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg flex items-center gap-2 disabled:opacity-60"
+        >
+          <RefreshCw size={14} className={generating ? 'animate-spin' : ''} />
+          {generating ? 'Regenerating...' : 'Regenerate'}
+        </button>
       </div>
+      {error && <p className="text-sm text-red-500">{error}</p>}
 
       {/* Weekly Plan Timeline */}
       <div className="bg-white dark:bg-[#242B31] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">

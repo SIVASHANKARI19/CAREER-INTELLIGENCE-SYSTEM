@@ -73,6 +73,7 @@ export const dashboardApi = {
 export const resumeApi = {
   analyze: (student_id?: number) =>
     apiClient.post<ResumeAnalysis>('/resume/analyze', { student_id }).then(r => r.data),
+
   getAnalysis: (student_id: number) =>
     apiClient.get<ResumeAnalysis>(`/resume/${student_id}`).then(r => r.data),
 };
