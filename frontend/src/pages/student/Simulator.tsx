@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { simulatorApi, shapApi } from '../../api';
+import { simulatorApi, shapApi, profileApi } from '../../api';
 import { SimulatorSession, ShapExplanation } from '../../types';
 import { PlayCircle, Zap, ArrowRight, ShieldAlert, Sparkles, RefreshCw } from 'lucide-react';
 import { CircularScore } from '../../components/charts/CircularScore';
@@ -9,32 +9,37 @@ export const SimulatorPage: React.FC = () => {
   const [session, setSession] = useState<SimulatorSession | null>(null);
   const [shap, setShap] = useState<ShapExplanation | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const availableActions = [
     { id: 'aws', label: 'AWS Certified Cloud Practitioner', category: 'certification' },
     { id: 'system_design', label: 'Completed End-to-End System Design Capstone', category: 'project' },
     { id: 'docker', label: 'Dockerized Microservices with CI/CD Workflow', category: 'skill' },
-    { id: 'internship', label: '3-Month Software Engineering Internship', category: 'experience' },
-    { id: 'ats_fix', label: 'Optimized Resume ATS Keywords to 90%', category: 'resume' },
+    { id: 'internship', label: '3-Month Software Engineering Internship', category: 'internship' },
+    { id: 'ats_fix', label: 'Optimized Resume ATS Keywords to 90%', category: 'dsa' },
   ];
 
   const [selectedActionIds, setSelectedActionIds] = useState<string[]>(['aws', 'system_design']);
 
   const runSimulation = (actionIds: string[]) => {
     setLoading(true);
+    setError(null);
     const applied_changes = availableActions
       .filter(a => actionIds.includes(a.id))
       .map(a => ({ action: a.label, category: a.category }));
 
     simulatorApi.simulate(applied_changes)
       .then(res => setSession(res))
-      .catch(err => console.error(err))
+      .catch(err => setError(err.response?.data?.detail || 'Simulation failed. Please try again.'))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     runSimulation(selectedActionIds);
-    shapApi.getShap(1).then(res => setShap(res)).catch(() => {});
+    profileApi.getProfile()
+      .then(p => shapApi.getShapForStudent(p.id))
+      .then(res => setShap(res))
+      .catch(() => {});
   }, []);
 
   const toggleAction = (id: string) => {
@@ -61,6 +66,7 @@ export const SimulatorPage: React.FC = () => {
       </div>
 
       {/* Simulator Scenario Panel */}
+      {error && <p className="text-sm text-red-500">{error}</p>}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Checkbox controls */}
         <div className="bg-white dark:bg-[#242B31] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
@@ -109,7 +115,7 @@ export const SimulatorPage: React.FC = () => {
 
             <div className="flex flex-col items-center text-linkedin-blue font-bold">
               <ArrowRight size={28} className="rotate-90 sm:rotate-0" />
-              <span className="text-xs mt-1 text-emerald-600 font-extrabold">+{(session?.delta || 0) * 100}%</span>
+              <span className="text-xs mt-1 text-emerald-600 font-extrabold">+{((session?.delta || 0) * 100).toFixed(1)}%</span>
             </div>
 
             <CircularScore

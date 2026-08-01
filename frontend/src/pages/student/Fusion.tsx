@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fusionApi } from '../../api';
+import { fusionApi, profileApi } from '../../api';
 import { FusionResult } from '../../types';
 import { Network, CheckCircle2, Eye, AlertOctagon, Sparkles, ShieldCheck } from 'lucide-react';
 import { CircularScore } from '../../components/charts/CircularScore';
@@ -9,7 +9,8 @@ export const FusionPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fusionApi.getFusion(1)
+    profileApi.getProfile()
+      .then(p => fusionApi.getFusion(p.id))
       .then(res => setData(res))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));

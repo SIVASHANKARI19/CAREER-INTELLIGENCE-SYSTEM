@@ -66,6 +66,7 @@ export interface LinkedinAnalysis {
   extracted_experience: Record<string, any>[];
   extracted_education: Record<string, any>[];
   extracted_certificates: Record<string, any>[];
+  extracted_posts: Record<string, any>[];
   analyzed_at: string;
 }
 

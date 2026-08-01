@@ -100,6 +100,16 @@ def _get_nlp_and_matcher():
     return _nlp, _skill_matcher
 
 
+def _nlp_has_parser() -> bool:
+    """True only if the loaded pipeline can produce a dependency parse.
+    A blank spaCy pipeline (spacy.blank) still exposes `doc.noun_chunks` as
+    an attribute — hasattr() on it returns True — but iterating it raises
+    spaCy error E029 at runtime because there's no parser. This checks the
+    actual pipeline components instead of the misleading hasattr check."""
+    nlp, _ = _get_nlp_and_matcher()
+    return "parser" in nlp.pipe_names or "senter" in nlp.pipe_names
+
+
 def _get_embedder():
     """Lazy-load sentence-transformers only when semantic fallback matching
     is actually needed, and fail soft if the package/model isn't available
@@ -183,9 +193,9 @@ def extract_skills(text: str) -> List[str]:
     # Semantic fallback over noun chunks for skill-like phrases not caught
     # by exact matching (only runs if sentence-transformers is available).
     embedder, taxonomy_emb = _get_embedder()
-    if embedder:
+    if embedder and _nlp_has_parser():
         candidates = list({chunk.text.strip() for chunk in doc.noun_chunks
-                            if 1 <= len(chunk.text.split()) <= 4}) if hasattr(doc, "noun_chunks") else []
+                            if 1 <= len(chunk.text.split()) <= 4})
         if candidates:
             chunk_embeddings = embedder.encode(candidates, normalize_embeddings=True)
             for cand, emb in zip(candidates, chunk_embeddings):
@@ -295,12 +305,31 @@ def _skill_mentioned(skill: str, text: str) -> bool:
 def extract_projects(section_text: str) -> List[Dict[str, Any]]:
     if not section_text:
         return []
-    # Most resumes separate project entries with a blank line — prefer that
-    # signal; only fall back to the capital-letter heuristic (noisier) when
-    # the section has no blank lines to split on.
+    # Prefer blank-line separation when it survives PDF extraction.
     blocks = [b.strip() for b in re.split(r"\n\s*\n", section_text) if b.strip()]
+
     if len(blocks) <= 1:
-        blocks = re.split(r"\n(?=[A-Z\u2022\-\*])", section_text)
+        # PyMuPDF drops visually-blank lines during text extraction, so most
+        # real resumes arrive here with zero blank-line separators between
+        # project entries. Group by bullet markers instead: a bulleted line
+        # is always a continuation of the current project's description; a
+        # non-bulleted line only starts a NEW project if it follows a
+        # bulleted line (i.e. the previous project already had at least one
+        # description bullet). This correctly handles the overwhelmingly
+        # common resume format of "Title" followed by "- bullet" lines.
+        lines = [l.strip() for l in section_text.split("\n") if l.strip()]
+        bullet_re = re.compile(r"^[•\u2022\-\*]\s*")
+        blocks = []
+        current: List[str] = []
+        for line in lines:
+            is_bullet = bool(bullet_re.match(line))
+            if not is_bullet and current and bullet_re.match(current[-1]):
+                blocks.append("\n".join(current))
+                current = [line]
+            else:
+                current.append(line)
+        if current:
+            blocks.append("\n".join(current))
 
     entries = []
     for block in blocks:

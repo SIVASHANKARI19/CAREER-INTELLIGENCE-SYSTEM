@@ -10,6 +10,7 @@ import {
 export const Sidebar: React.FC = () => {
   const { user, logout } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const isStudent = user?.role ==="student"
 
   const studentLinks = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -50,33 +51,34 @@ export const Sidebar: React.FC = () => {
 
       {/* Nav List */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-        <div>
-          <p className="px-3 text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
-            Student Intelligence
-          </p>
-          <nav className="space-y-1">
-            {studentLinks.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-linkedin-blue/10 text-linkedin-blue font-semibold dark:bg-linkedin-blue/20 dark:text-linkedin-accent'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`
-                  }
-                >
-                  <Icon size={18} />
-                  <span>{item.label}</span>
-                </NavLink>
-              );
-            })}
-          </nav>
-        </div>
-
+        {isStudent && (
+  <div>
+    <p className="px-3 text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+      Student Intelligence
+    </p>
+    <nav className="space-y-1">
+      {studentLinks.map((item) => {
+        const Icon = item.icon;
+        return (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-linkedin-blue/10 text-linkedin-blue font-semibold dark:bg-linkedin-blue/20 dark:text-linkedin-accent'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`
+            }
+          >
+            <Icon size={18} />
+            <span>{item.label}</span>
+          </NavLink>
+        );
+      })}
+    </nav>
+  </div>
+)}
         {isAdmin && (
           <div>
             <p className="px-3 text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">

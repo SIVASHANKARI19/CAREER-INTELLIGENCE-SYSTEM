@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { roadmapApi } from '../../api';
+import { roadmapApi, profileApi } from '../../api';
 import { LearningRoadmap } from '../../types';
 import { Compass, Calendar, BookOpen, Rocket, HelpCircle, ExternalLink, CheckCircle } from 'lucide-react';
 
@@ -8,7 +8,8 @@ export const RoadmapPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    roadmapApi.getRoadmap(1)
+    profileApi.getProfile()
+      .then(p => roadmapApi.getRoadmap(p.id))
       .then(res => setData(res))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));

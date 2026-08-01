@@ -106,6 +106,39 @@ def _readiness_level(probability: float) -> str:
     return "beginner"
 
 
+def gather_features_from_db(student_id: int, db) -> Dict[str, float]:
+    """Builds the same feature vector the prediction router builds, but as a
+    shared function so Module 13 (simulator) can reuse it instead of
+    duplicating — and so both modules stay in sync if the feature set
+    changes. Imports are local to avoid a circular import between
+    prediction_service and the student_profile/resume/github/fusion models."""
+    from app.models.student_profile import StudentProfile
+    from app.models.resume import ResumeAnalysis
+    from app.models.github_profile import GithubAnalysis
+    from app.models.fusion import FusionResult
+
+    profile = db.query(StudentProfile).filter(StudentProfile.id == student_id).first()
+    resume = db.query(ResumeAnalysis).filter(ResumeAnalysis.student_id == student_id).first()
+    github = db.query(GithubAnalysis).filter(GithubAnalysis.student_id == student_id).first()
+    fusion = db.query(FusionResult).filter(FusionResult.student_id == student_id).first()
+
+    return build_feature_vector(
+        cgpa=float(profile.cgpa) if profile and profile.cgpa else 6.5,
+        ats_score=resume.ats_score if resume else 40.0,
+        github_score=github.github_score if github else 20.0,
+        project_quality_score=github.project_quality_score if github else 20.0,
+        resume_credibility_score=fusion.resume_credibility_score if fusion else 40.0,
+        verified_skills_count=len(fusion.verified_skills) if fusion else 0,
+        hidden_skills_count=len(fusion.hidden_skills) if fusion else 0,
+        unsupported_claims_count=len(fusion.unsupported_claims) if fusion else 0,
+        projects_count=len(profile.projects) if profile and profile.projects else 0,
+        certifications_count=len(profile.certifications) if profile and profile.certifications else 0,
+        internships_count=len(profile.internships) if profile and profile.internships else 0,
+        programming_languages_count=len(profile.programming_languages) if profile and profile.programming_languages else 0,
+        total_commits=github.total_commits if github else 0,
+    )
+
+
 def predict_placement(features: Dict[str, float], student_id: int) -> Dict[str, Any]:
     import datetime
     model, feature_order = _load_model()

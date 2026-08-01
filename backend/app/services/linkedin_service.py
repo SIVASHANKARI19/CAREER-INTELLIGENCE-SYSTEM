@@ -23,6 +23,90 @@ LINKEDIN_SECTION_HEADINGS = {
     "skills": ["skills", "top skills"],
 }
 
+# ---------------------------------------------------------------------------
+# Post extraction (Activity/feed page exports)
+# ---------------------------------------------------------------------------
+# LinkedIn's official profile "Save to PDF" export never contains posts —
+# there is no posts section in that document at all. Posts only appear when
+# someone exports their Activity/feed page (usually via browser Print-to-PDF,
+# since LinkedIn has no native "save posts" button). That export format is a
+# full rendered webpage: navigation, footer legal links, "people also
+# follow" suggestions, and ad content all get mixed in with the real post
+# text. BOILERPLATE_PATTERNS below is built directly from a real sample of
+# that noise. The post-boundary heuristics (time-ago markers, engagement
+# bars) are a best-effort first pass — LinkedIn's markup isn't public and
+# varies by export method, so this should be validated and tuned against a
+# real posts PDF rather than trusted blindly. Flag any bad output back and
+# we tighten the patterns.
+BOILERPLATE_PATTERNS = [
+    r"^accessibility$", r"^talent solutions$", r"^community guidelines$", r"^careers$",
+    r"^marketing solutions$", r"^privacy\s*&\s*terms$", r"^ad choices$", r"^advertising$",
+    r"^sales solutions$", r"^mobile$", r"^small business$", r"you might like",
+    r"^pages for you$", r"^follow$", r"^show all$", r"linkedin corporation",
+    r"questions\? visit our help center", r"manage your account and privacy",
+    r"^go to your settings\.?$", r"recommendation transparency",
+    r"learn more about recommended content", r"^select language$",
+    r"^safety center$", r"^\d{1,2}/\d{1,2}/\d{4},\s*\d{1,2}:\d{2}$",  # print timestamp
+    r"^\d+/\d+$",  # page number e.g. "4/5"
+    r"^500\+ connections$", r"\d[\d,]*\s+followers$",
+    r"other connections follow this page$", r"^follow this page$",
+]
+_BOILERPLATE_RE = re.compile("|".join(BOILERPLATE_PATTERNS), re.IGNORECASE)
+
+# A line like "3d •", "2w •", "1mo •", "1yr •" marks the start of a post's
+# metadata (posted-by / time-ago) in a printed feed page.
+_POST_TIME_MARKER_RE = re.compile(
+    r"^\d+\s*(h|hr|hrs|d|day|days|w|wk|wks|mo|mos|yr|yrs)\b\s*(•.*)?$", re.IGNORECASE
+)
+# The action row under each post ("Like Comment Share Send") signals the end
+# of that post's text.
+_ENGAGEMENT_ROW_RE = re.compile(r"\bLike\b.*\bComment\b.*\bShare\b", re.IGNORECASE)
+_REACTIONS_RE = re.compile(r"([\d,]+)\s*(reactions?|likes?)\b", re.IGNORECASE)
+_COMMENTS_RE = re.compile(r"([\d,]+)\s*comments?\b", re.IGNORECASE)
+
+
+def _strip_boilerplate(text: str) -> List[str]:
+    lines = [l.strip() for l in text.split("\n")]
+    return [l for l in lines if l and not _BOILERPLATE_RE.search(l)]
+
+
+def extract_posts(raw_text: str) -> List[Dict[str, Any]]:
+    """Best-effort extraction of post content from a printed LinkedIn
+    Activity/feed PDF. Returns [] for a normal profile "Save to PDF" export,
+    since that format has no time-marker lines to anchor on."""
+    lines = _strip_boilerplate(raw_text)
+    marker_indices = [i for i, l in enumerate(lines) if _POST_TIME_MARKER_RE.match(l)]
+    if not marker_indices:
+        return []
+
+    posts = []
+    for idx, marker_idx in enumerate(marker_indices):
+        next_marker = marker_indices[idx + 1] if idx + 1 < len(marker_indices) else len(lines)
+        block = lines[marker_idx + 1:next_marker]
+
+        engagement_idx = next(
+            (i for i, l in enumerate(block) if _ENGAGEMENT_ROW_RE.search(l)), len(block)
+        )
+        content_lines = block[:engagement_idx]
+        tail_lines = " ".join(block[engagement_idx:])
+
+        content = " ".join(content_lines).strip()
+        if len(content) < 15:
+            continue  # too short to be real post text — likely leftover noise
+
+        reactions_match = _REACTIONS_RE.search(tail_lines)
+        comments_match = _COMMENTS_RE.search(tail_lines)
+
+        posts.append({
+            "content": content[:1000],
+            "posted": lines[marker_idx].split("•")[0].strip(),
+            "reactions_count": int(reactions_match.group(1).replace(",", "")) if reactions_match else None,
+            "comments_count": int(comments_match.group(1).replace(",", "")) if comments_match else None,
+            "mentioned_skills": extract_skills(content)[:10],
+        })
+
+    return posts[:25]
+
 
 def segment_linkedin_sections(text: str) -> Dict[str, str]:
     lines = text.split("\n")
@@ -143,6 +227,7 @@ def analyze_linkedin(file_path: str, student_id: int) -> Dict[str, Any]:
     experience = extract_experience(sections.get("experience", ""))
     education = extract_education(sections.get("education", ""))
     certificates = extract_certificates(sections.get("certifications", ""))
+    posts = extract_posts(text)
 
     return {
         "student_id": student_id,
@@ -152,6 +237,7 @@ def analyze_linkedin(file_path: str, student_id: int) -> Dict[str, Any]:
         "extracted_experience": experience,
         "extracted_education": education,
         "extracted_certificates": certificates,
+        "extracted_posts": posts,
         "analyzed_at": datetime.datetime.utcnow().isoformat(),
     }
 
@@ -171,5 +257,8 @@ def analyze_linkedin_mock(student_id: int) -> Dict[str, Any]:
                                   "degree": "B.Tech Computer Science", "period": "2021 - 2025"}],
         "extracted_certificates": [{"name": "AWS Certified Cloud Practitioner",
                                      "issued_by": "Amazon Web Services", "issue_date": "May 2024"}],
+        "extracted_posts": [{"content": "Excited to share my new project using FastAPI and React!",
+                              "posted": "2w", "reactions_count": 34, "comments_count": 5,
+                              "mentioned_skills": ["FastAPI", "React"]}],
         "analyzed_at": datetime.datetime.utcnow().isoformat(),
     }

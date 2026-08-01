@@ -13,6 +13,7 @@ class LinkedinAnalysis(Base):
     extracted_experience = Column(JSON, default=list, nullable=True)
     extracted_education = Column(JSON, default=list, nullable=True)
     extracted_certificates = Column(JSON, default=list, nullable=True)
+    extracted_posts = Column(JSON, default=list, nullable=True)
     analyzed_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False)

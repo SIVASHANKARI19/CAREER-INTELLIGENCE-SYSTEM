@@ -14,6 +14,7 @@ class LinkedinAnalysisOut(BaseModel):
     extracted_experience: List[Dict[str, Any]] = []
     extracted_education: List[Dict[str, Any]] = []
     extracted_certificates: List[Dict[str, Any]] = []
+    extracted_posts: List[Dict[str, Any]] = []
     analyzed_at: datetime
 
     class Config:

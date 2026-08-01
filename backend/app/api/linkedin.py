@@ -45,6 +45,7 @@ def analyze_linkedin_endpoint(
     record.extracted_experience = result["extracted_experience"]
     record.extracted_education = result["extracted_education"]
     record.extracted_certificates = result["extracted_certificates"]
+    record.extracted_posts = result["extracted_posts"]
 
     db.commit()
     db.refresh(record)

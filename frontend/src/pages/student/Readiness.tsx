@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { readinessApi } from '../../api';
+import { readinessApi, profileApi } from '../../api';
 import { ReadinessScore } from '../../types';
 import { ReadinessRadarChart } from '../../components/charts/RadarChart';
 import { CircularScore } from '../../components/charts/CircularScore';
@@ -11,7 +11,8 @@ export const ReadinessPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    readinessApi.getReadiness(1)
+    profileApi.getProfile()
+      .then(p => readinessApi.getReadiness(p.id))
       .then(res => setData(res))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));

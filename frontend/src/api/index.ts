@@ -154,6 +154,8 @@ export const shapApi = {
     apiClient.post<ShapExplanation>('/shap', { prediction_id }).then(r => r.data),
   getShap: (prediction_id: number) =>
     apiClient.get<ShapExplanation>(`/shap/${prediction_id}`).then(r => r.data),
+  getShapForStudent: (student_id: number) =>
+    apiClient.get<ShapExplanation>(`/shap/student/${student_id}`).then(r => r.data),
 };
 
 // 4.13 Career Simulator API
