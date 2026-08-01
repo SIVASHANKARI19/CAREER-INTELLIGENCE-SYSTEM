@@ -182,4 +182,13 @@ export const adminApi = {
     apiClient.get<ModelRegistry[]>('/admin/model/registry').then(r => r.data),
   getAnalytics: () =>
     apiClient.get<AdminAnalytics>('/admin/analytics').then(r => r.data),
+  getDatasetInfo: () =>
+    apiClient.get<any>('/admin/dataset/info').then(r => r.data),
+  uploadDataset: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient
+      .post<any>('/admin/dataset/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      .then(r => r.data);
+  },
 };

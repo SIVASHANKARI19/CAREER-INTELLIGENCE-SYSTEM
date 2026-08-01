@@ -9,11 +9,16 @@ export const ModelRetraining: React.FC = () => {
   const [retraining, setRetraining] = useState(false);
   const [retrainMsg, setRetrainMsg] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchModels = () => {
+    setLoading(true);
     adminApi.getModelRegistry()
       .then(res => setModels(res))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchModels();
   }, []);
 
   const handleRetrain = () => {
@@ -22,6 +27,7 @@ export const ModelRetraining: React.FC = () => {
     adminApi.retrainModel()
       .then(res => {
         setRetrainMsg(`${res.message} Target model: ${res.new_version}`);
+        fetchModels();
       })
       .catch(err => console.error(err))
       .finally(() => setRetraining(false));
@@ -84,7 +90,9 @@ export const ModelRetraining: React.FC = () => {
 
                 {/* Metrics */}
                 <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 text-xs">
-                  {Object.entries(m.metrics || {}).map(([key, val]) => (
+                  {Object.entries(m.metrics || {})
+                    .filter(([, val]) => typeof val !== 'object')
+                    .map(([key, val]) => (
                     <div key={key} className="bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
                       <span className="text-slate-400 capitalize">{key.replace('_', ' ')}: </span>
                       <span className="font-bold text-slate-800 dark:text-slate-200">{String(val)}</span>

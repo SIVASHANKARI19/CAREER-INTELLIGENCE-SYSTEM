@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict
 import datetime
+import os
 from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.models.student_profile import StudentProfile
@@ -13,6 +14,7 @@ from app.schemas.admin import (
 )
 from app.schemas.profile import StudentProfileOut
 from app.api.deps import get_current_admin
+from app.services import dataset_service
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -70,10 +72,12 @@ def get_company_requirements(
 ):
     reqs = db.query(CompanyRequirement).all()
     if not reqs:
-        # Default seed mock requirements if database is empty
-        reqs = [
+        # Seed and PERSIST default requirements on first use. Previously
+        # these were constructed in-memory only and returned without being
+        # saved — any later PUT /company-requirements/{id} against them
+        # would 404 because the row never actually existed in the DB.
+        seed = [
             CompanyRequirement(
-                id=1,
                 company_name="Google",
                 role="Software Engineer (SDE I)",
                 required_skills=["Python", "C++", "System Design", "Algorithms"],
@@ -81,7 +85,6 @@ def get_company_requirements(
                 notes="Targeting graduating batch 2025."
             ),
             CompanyRequirement(
-                id=2,
                 company_name="Amazon",
                 role="Full Stack Developer",
                 required_skills=["React", "Java", "AWS", "REST APIs"],
@@ -89,6 +92,11 @@ def get_company_requirements(
                 notes="Must have 1+ web dev internship."
             )
         ]
+        db.add_all(seed)
+        db.commit()
+        for r in seed:
+            db.refresh(r)
+        reqs = seed
     return reqs
 
 @router.put("/company-requirements/{id}", response_model=CompanyRequirementOut)
@@ -110,20 +118,66 @@ def update_company_requirement(
     db.refresh(company_req)
     return company_req
 
-@router.post("/model/retrain", response_model=ModelRetrainResponse)
-def retrain_model_trigger(
+@router.get("/dataset/info")
+def get_dataset_info(
     admin: User = Depends(get_current_admin)
 ):
-    return ModelRetrainResponse(
-        message="Model retraining job successfully triggered in background.",
-        model_name="PlacementXGBoostClassifier",
-        new_version="v2.2-XGBoost-Enhanced",
-        status="training",
+    return dataset_service.get_dataset_info()
+
+
+@router.post("/dataset/upload")
+async def upload_dataset(
+    file: UploadFile = File(...),
+    admin: User = Depends(get_current_admin)
+):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only .csv files are accepted.")
+    contents = await file.read()
+    try:
+        info = dataset_service.validate_and_save_dataset(contents)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {"message": "Dataset uploaded and validated successfully.", **info}
+
+
+@router.post("/model/retrain", response_model=ModelRetrainResponse)
+def retrain_model_trigger(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin)
+):
+    try:
+        result = dataset_service.retrain_model()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Retraining failed: {str(e)}")
+
+    xgb_metrics = result["metrics"].get("XGBoost", {})
+    registry_entry = ModelRegistry(
+        model_name=result["model_name"],
+        version=result["new_version"],
+        status=ModelStatus.ACTIVE,
+        trained_at=datetime.datetime.utcnow(),
         metrics={
-            "estimated_time_minutes": 5,
-            "training_samples": 4500,
-            "target_metric": "ROC-AUC > 0.94"
+            **xgb_metrics,
+            "dataset_source": result["dataset_source"],
+            "dataset_rows": result["dataset_rows"],
+            "full_comparison": result["metrics"],
         }
+    )
+    # Only one ACTIVE model at a time — archive the previous one.
+    db.query(ModelRegistry).filter(
+        ModelRegistry.model_name == result["model_name"],
+        ModelRegistry.status == ModelStatus.ACTIVE
+    ).update({"status": ModelStatus.ARCHIVED})
+    db.add(registry_entry)
+    db.commit()
+
+    return ModelRetrainResponse(
+        message=f"Model retrained on {result['dataset_rows']} rows "
+                f"({result['dataset_source']} dataset) and is now live.",
+        model_name=result["model_name"],
+        new_version=result["new_version"],
+        status="active",
+        metrics=xgb_metrics,
     )
 
 @router.get("/model/registry", response_model=List[ModelRegistryOut])
@@ -131,27 +185,28 @@ def get_model_registry(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin)
 ):
-    models = db.query(ModelRegistry).all()
+    models = db.query(ModelRegistry).order_by(ModelRegistry.trained_at.desc()).all()
     if not models:
-        # Default mock models
-        models = [
-            ModelRegistry(
-                id=1,
-                model_name="PlacementXGBoostClassifier",
-                version="v2.1-XGBoost-Explainable",
-                status=ModelStatus.ACTIVE,
-                trained_at=datetime.datetime.utcnow(),
-                metrics={"accuracy": 0.92, "f1_score": 0.91, "auc_roc": 0.95}
-            ),
-            ModelRegistry(
-                id=2,
-                model_name="SkillExtractorBertNER",
-                version="v1.4-DeBERTa",
-                status=ModelStatus.ACTIVE,
-                trained_at=datetime.datetime.utcnow(),
-                metrics={"precision": 0.94, "recall": 0.92}
-            )
-        ]
+        # Seed and PERSIST one real registry entry reflecting the model that
+        # was actually trained at setup time, rather than fabricated metrics
+        # for a model that was never registered in the DB.
+        import json
+        metrics_path = os.path.join(dataset_service.MODEL_DIR, "model_metrics.json")
+        xgb_metrics = {}
+        if os.path.exists(metrics_path):
+            with open(metrics_path) as f:
+                xgb_metrics = json.load(f).get("XGBoost", {})
+        seed = ModelRegistry(
+            model_name="PlacementXGBoostClassifier",
+            version="v1-initial-synthetic",
+            status=ModelStatus.ACTIVE,
+            trained_at=datetime.datetime.utcnow(),
+            metrics={**xgb_metrics, "dataset_source": "synthetic"}
+        )
+        db.add(seed)
+        db.commit()
+        db.refresh(seed)
+        models = [seed]
     return models
 
 @router.get("/analytics", response_model=AdminAnalyticsOut)
@@ -159,25 +214,60 @@ def get_admin_analytics(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin)
 ):
-    student_count = db.query(StudentProfile).count()
-    if student_count == 0:
-        student_count = 142
+    from app.models.readiness import ReadinessScore
+    from app.models.resume import ResumeAnalysis
+    from app.models.placement_prediction import PlacementPrediction
+    from app.models.skill_gap import SkillGapResult
+    from sqlalchemy import func, case
+
+    total_students = db.query(StudentProfile).count()
+
+    avg_readiness = db.query(func.avg(ReadinessScore.overall_readiness)).scalar()
+    avg_ats = db.query(func.avg(ResumeAnalysis.ats_score)).scalar()
+    avg_placement_prob = db.query(func.avg(PlacementPrediction.placement_probability)).scalar()
+    industry_ready_count = db.query(PlacementPrediction).filter(
+        PlacementPrediction.readiness_level == "industry_ready"
+    ).count()
+
+    # Top missing skills: flatten JSON arrays across all skill_gap_results
+    # rows in Python, since counting elements inside a JSON array isn't
+    # portable SQL across SQLite/MySQL without JSON_TABLE-style functions.
+    skill_gap_rows = db.query(SkillGapResult.missing_skills).all()
+    skill_counter: Dict[str, int] = {}
+    for (missing_list,) in skill_gap_rows:
+        for skill in (missing_list or []):
+            skill_counter[skill] = skill_counter.get(skill, 0) + 1
+    top_missing_skills = [
+        {"skill": s, "count": c}
+        for s, c in sorted(skill_counter.items(), key=lambda x: -x[1])[:8]
+    ]
+
+    dept_rows = (
+        db.query(
+            StudentProfile.department,
+            func.count(StudentProfile.id),
+            func.avg(ReadinessScore.overall_readiness),
+        )
+        .outerjoin(ReadinessScore, ReadinessScore.student_id == StudentProfile.id)
+        .filter(StudentProfile.department.isnot(None))
+        .group_by(StudentProfile.department)
+        .all()
+    )
+    department_stats = [
+        {
+            "department": dept,
+            "students": count,
+            "avg_readiness": round(avg_r, 1) if avg_r is not None else None,
+        }
+        for dept, count, avg_r in dept_rows
+    ]
 
     return AdminAnalyticsOut(
-        total_students=student_count,
-        avg_readiness_score=81.4,
-        avg_ats_score=84.2,
-        avg_placement_probability=0.83,
-        industry_ready_count=89,
-        top_missing_skills=[
-            {"skill": "System Design", "count": 54},
-            {"skill": "Docker", "count": 48},
-            {"skill": "Redis Caching", "count": 41},
-            {"skill": "AWS Cloud", "count": 37}
-        ],
-        department_stats=[
-            {"department": "Computer Science & Engineering", "students": 68, "avg_readiness": 84.5},
-            {"department": "Information Technology", "students": 45, "avg_readiness": 80.2},
-            {"department": "Electronics & Communication", "students": 29, "avg_readiness": 76.8}
-        ]
+        total_students=total_students,
+        avg_readiness_score=round(avg_readiness, 1) if avg_readiness is not None else 0.0,
+        avg_ats_score=round(avg_ats, 1) if avg_ats is not None else 0.0,
+        avg_placement_probability=round(avg_placement_prob, 4) if avg_placement_prob is not None else 0.0,
+        industry_ready_count=industry_ready_count,
+        top_missing_skills=top_missing_skills,
+        department_stats=department_stats,
     )

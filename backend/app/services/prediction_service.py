@@ -55,6 +55,16 @@ def _load_model():
     return _model, _feature_order
 
 
+def reload_model():
+    """Forces the next prediction call to re-read the .joblib file from disk.
+    Called by admin retraining (Module 14) after a new model is written, so
+    a fresh model takes effect immediately instead of only after a server
+    restart — which was previously the only way to pick up a retrained model."""
+    global _model, _feature_order
+    _model = None
+    _feature_order = None
+
+
 def build_feature_vector(
     cgpa: float,
     ats_score: float,
