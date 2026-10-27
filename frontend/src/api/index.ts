@@ -1,12 +1,13 @@
 import axios from 'axios';
+
 import {
   User, StudentProfile, ResumeAnalysis, GithubAnalysis, LinkedinAnalysis,
   FusionResult, PlacementPrediction, ReadinessScore, SkillGapResult,
   LearningRoadmap, ShapExplanation, SimulatorSession, CompanyRequirement,
   ModelRegistry, AdminAnalytics
 } from '../types';
-
-const API_BASE_URL = 'http://localhost:8000/api';
+const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
+const API_BASE_URL = `${BASE}/api`;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
