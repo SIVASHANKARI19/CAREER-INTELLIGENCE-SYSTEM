@@ -22,7 +22,7 @@ accepted property of explaining nonlinear model outputs and not a bug.
 
 from typing import Dict, Any
 import numpy as np
-import shap
+
 
 from app.services.prediction_service import _load_model
 
@@ -52,6 +52,7 @@ def _sigmoid(z: float) -> float:
 def _get_explainer(model):
     global _explainer
     if _explainer is None:
+        import shap  # lazy: slow import, only needed when explaining
         _explainer = shap.TreeExplainer(model)
     return _explainer
 
