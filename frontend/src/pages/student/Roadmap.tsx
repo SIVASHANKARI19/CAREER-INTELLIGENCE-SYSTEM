@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { roadmapApi, profileApi } from '../../api';
 import { LearningRoadmap } from '../../types';
-import { Compass, Calendar, BookOpen, Rocket, HelpCircle, ExternalLink, CheckCircle, RefreshCw } from 'lucide-react';
+import { Compass, Calendar, BookOpen, Rocket, ExternalLink, CheckCircle, RefreshCw } from 'lucide-react';
 
 export const RoadmapPage: React.FC = () => {
   const [data, setData] = useState<LearningRoadmap | null>(null);
@@ -50,6 +50,12 @@ export const RoadmapPage: React.FC = () => {
     );
   }
 
+  // Defensive fallbacks: the API may omit optional arrays, and we never want
+  // a missing field to crash the page with a "map of undefined" error.
+  const weeklyPlan = data.weekly_plan ?? [];
+  const recommendedProjects = data.recommended_projects ?? [];
+  const recommendedCourses = data.recommended_courses ?? [];
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -77,28 +83,32 @@ export const RoadmapPage: React.FC = () => {
       {/* Weekly Plan Timeline */}
       <div className="bg-white dark:bg-[#242B31] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
         <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-          <Calendar size={18} className="text-linkedin-blue" /> 4-Week Mastery Schedule
+          <Calendar size={18} className="text-linkedin-blue" /> {weeklyPlan.length}-Week Mastery Schedule
         </h3>
 
-        <div className="space-y-6 border-l-2 border-slate-200 dark:border-slate-700 pl-4 ml-2">
-          {data?.weekly_plan.map((item: any, idx: number) => (
-            <div key={idx} className="relative space-y-2">
-              <div className="absolute -left-[25px] top-1 w-4 h-4 rounded-full bg-linkedin-blue border-2 border-white dark:border-[#242B31]" />
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
-                <span className="text-xs font-bold text-linkedin-blue uppercase tracking-wider">Week {item.week}</span>
-                <h4 className="font-bold text-sm text-slate-900 dark:text-white">{item.focus}</h4>
-                <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
-                  {item.tasks.map((t: string, tidx: number) => (
-                    <li key={tidx} className="flex items-center gap-2">
-                      <CheckCircle size={12} className="text-emerald-500 shrink-0" />
-                      <span>{t}</span>
-                    </li>
-                  ))}
-                </ul>
+        {weeklyPlan.length === 0 ? (
+          <p className="text-sm text-slate-500">No weekly plan available yet. Try regenerating the roadmap.</p>
+        ) : (
+          <div className="space-y-6 border-l-2 border-slate-200 dark:border-slate-700 pl-4 ml-2">
+            {weeklyPlan.map((item: any, idx: number) => (
+              <div key={idx} className="relative space-y-2">
+                <div className="absolute -left-[25px] top-1 w-4 h-4 rounded-full bg-linkedin-blue border-2 border-white dark:border-[#242B31]" />
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                  <span className="text-xs font-bold text-linkedin-blue uppercase tracking-wider">Week {item.week}</span>
+                  <h4 className="font-bold text-sm text-slate-900 dark:text-white">{item.focus}</h4>
+                  <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                    {(item.tasks ?? []).map((t: string, tidx: number) => (
+                      <li key={tidx} className="flex items-center gap-2">
+                        <CheckCircle size={12} className="text-emerald-500 shrink-0" />
+                        <span>{t}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Recommended Projects & Courses */}
@@ -108,26 +118,25 @@ export const RoadmapPage: React.FC = () => {
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
             <Rocket size={16} className="text-indigo-600" /> Recommended Capstone Projects
           </h3>
-          <div className="space-y-3">
-            {data?.recommended_projects.map((p: any, i: number) => (
-              <div key={i} className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
-                <div className="flex justify-between items-center">
+          {recommendedProjects.length === 0 ? (
+            <p className="text-xs text-slate-500">No project recommendations yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {recommendedProjects.map((p: any, i: number) => (
+                <div key={i} className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
                   <span className="font-bold text-slate-900 dark:text-white">{p.title}</span>
-                  <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 rounded font-semibold text-[10px]">
-                    {p.difficulty}
-                  </span>
+                  <p className="text-slate-500">{p.description}</p>
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {(p.skills_practiced ?? []).map((t: string, idx: number) => (
+                      <span key={idx} className="px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded text-[10px]">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <p className="text-slate-500">{p.impact}</p>
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {p.tech_stack.map((t: string, idx: number) => (
-                    <span key={idx} className="px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded text-[10px]">
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Recommended Courses */}
@@ -135,23 +144,32 @@ export const RoadmapPage: React.FC = () => {
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
             <BookOpen size={16} className="text-indigo-600" /> Curated Courses & Guides
           </h3>
-          <div className="space-y-3">
-            {data?.recommended_courses.map((c: any, i: number) => (
-              <a
-                key={i}
-                href={c.link}
-                target="_blank"
-                rel="noreferrer"
-                className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1 block hover:border-linkedin-blue transition-colors"
-              >
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-slate-900 dark:text-white">{c.name}</span>
-                  <ExternalLink size={14} className="text-slate-400" />
-                </div>
-                <p className="text-slate-400">Platform: {c.platform}</p>
-              </a>
-            ))}
-          </div>
+          {recommendedCourses.length === 0 ? (
+            <p className="text-xs text-slate-500">No course recommendations yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {recommendedCourses.map((c: any, i: number) => {
+                // The API doesn't send a direct link for courses, so build a
+                // best-effort search URL rather than rendering a dead <a>.
+                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(`${c.title} ${c.platform}`)}`;
+                return (
+                  <a
+                    key={i}
+                    href={searchUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-1 block hover:border-linkedin-blue transition-colors"
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-slate-900 dark:text-white">{c.title}</span>
+                      <ExternalLink size={14} className="text-slate-400" />
+                    </div>
+                    <p className="text-slate-400">Platform: {c.platform}{c.skill ? ` · ${c.skill}` : ''}</p>
+                  </a>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
